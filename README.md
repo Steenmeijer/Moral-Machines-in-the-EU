@@ -1,7 +1,7 @@
 # Moral Machines in the EU
 This repository contains all the relevant project files used in the MSc. Thesis project 'Moral Machines in the EU' for the partial fulfilment of the Data Science &amp; Society program at Tilburg University.
 
-In this repository, you find two files: one .html file and one RMarkdown file.
+In this repository, you find two files: one pdf file and one RMarkdown file.
 
 ## Data source
 This project uses data from the Moral Machine Experiment (Awad et al., 2018), which is publicly available via the Center for Open Science on http://goo.gl/JXRrBP. The author of this repository acknowledges that they do not have any legal claim to this data, which is why a link to the data is provided, instead of a zip-file with the data.
