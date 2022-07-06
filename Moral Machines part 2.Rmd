@@ -1,0 +1,897 @@
+---
+title: "Moral Machines part 2"
+author: "David Steenmeijer"
+date: "2022/07/06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting started
+This notebook guides the reader through the R code, used in the Master's thesis 'Moral Machines in the EU: How Civilian Preferences Can Help Shape Policy'. Created in partial fulfillment for the Master's Data Science & Society at Tilburg University.
+
+## part two
+The code in this notebook is additional to the code in the orignal markdown and only shows the analyses that were conducted for the second submission. Therefore, the EDA is not included in this file.
+
+First, the relevant packages must be imported:
+
+```{r packages, message=FALSE, warning=FALSE, paged.print=FALSE}
+# Import packages
+library('dplyr') # for data manipulation
+library('ggplot2') # for data visualization 
+library('tidyr') # for tidying data
+library('stats') # for running statistical tests and clustering
+library('dendextend') # for custom visualization of dendrograms
+library('colorspace') # custom visualization
+library('mclust') # plotting two dendrograms in one 
+library('rstatix') #for get_summary_stats function
+
+## added in part 2:
+library('caret') # for partitioning and knn
+library('ggstatsplot') # for anova's
+library('RSNNS') # for MLP
+library('randomForest')  # for Random Forest
+
+## Set working directory and seed
+#setwd("~/Desktop/Scriptie/Thesis")
+set.seed(1)
+```
+
+
+```{r Load data frame}
+## loading data frame
+Final_Frame <- read.csv('MM_EU/Final_Frame.csv', header=TRUE, sep=',')
+```
+
+```{r Remove NAs}
+## remove NAs - caret does not work if there are NAs in the dataset
+complete <- complete.cases(Final_Frame)
+Final_Frame <- Final_Frame[complete, ]
+
+## sanity check: complete?
+which(is.na(Final_Frame)) ## should be integer(0)
+```
+
+
+```{r Train-Test split}
+## train_test split 80:20 by country to get even distribution in country responses
+partition <- createDataPartition(y = Final_Frame$UserCountry3,
+                                 p = 0.8,
+                                 list = FALSE)
+train_frame <- Final_Frame[partition, ]
+test_frame <- Final_Frame[-partition, ]
+
+## renaming train frame to Final_Frame so code below can be executed in the same way
+Final_Frame <- train_frame
+```
+
+
+#### Some more data manipulation
+Below, the code is used to get the aggregated values of every variable in the data set, per country.
+This code is identical to the original one, but conducted on the train data 
+
+```{r EDA15: more manipulation}
+Country_Intervention <- Final_Frame %>%  
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Intervention, type = 'mean') %>% 
+  rename(Intervention = mean)
+Country_NumChar <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(DiffNumberOFCharacters, type = 'mean')%>% 
+  rename(DiffNumberOFCharacters = mean)
+Country_Man <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Man, type = 'mean')%>% 
+  rename(Man = mean)
+Country_Woman <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Woman, type = 'mean')%>% 
+  rename(Woman = mean)
+Country_Pregnant <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Pregnant, type = 'mean')%>% 
+  rename(Pregnant = mean)
+Country_Stroller <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Stroller, type = 'mean')%>% 
+  rename(Stroller = mean)
+Country_OldMan <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(OldMan, type = 'mean')%>% 
+  rename(OldMan = mean)
+Country_OldWoman <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(OldWoman, type = 'mean')%>% 
+  rename(OldWoman = mean)
+Country_Boy <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Boy, type = 'mean')%>% 
+  rename(Boy = mean)
+Country_Girl <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Girl, type = 'mean')%>% 
+  rename(Girl = mean)
+Country_Homeless <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Homeless, type = 'mean')%>% 
+  rename(Homeless = mean)
+Country_LargeWoman <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(LargeWoman, type = 'mean')%>% 
+  rename(LargeWoman = mean)
+Country_LargeMan <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(LargeMan, type = 'mean')%>% 
+  rename(LargeMan = mean)
+Country_Criminal <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Criminal, type = 'mean')%>% 
+  rename(Criminal = mean)
+Country_MaleAth <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(MaleAthlete, type = 'mean')%>% 
+  rename(MaleAthlete = mean)
+Country_MaleExec <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(MaleExecutive, type = 'mean')%>% 
+  rename(MaleExecutive = mean)
+Country_MaleDoctor <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(MaleDoctor, type = 'mean')%>% 
+  rename(MaleDoctor = mean)
+Country_FemaleExec <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(FemaleExecutive, type = 'mean')%>% 
+  rename(FemaleExecutive = mean)
+Country_FemaleAth <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(FemaleAthlete, type = 'mean')%>% 
+  rename(FemaleAthlete = mean)
+Country_FemaleDoctor <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(FemaleDoctor, type = 'mean')%>% 
+  rename(FemaleDoctor = mean)
+Country_Cat <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Cat, type = 'mean')%>% 
+  rename(Cat = mean)
+CountryDog <- Final_Frame %>% 
+  group_by(UserCountry3) %>% 
+  get_summary_stats(Dog, type = 'mean')%>% 
+  rename(Dog = mean)
+
+Country_Averaged <- full_join(Country_Intervention, Country_NumChar, 
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE) %>% 
+  select(-variable.x, -variable.y)
+# add Man 
+Country_Averaged <- full_join(Country_Averaged, Country_Man,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Woman
+Country_Averaged <- full_join(Country_Averaged, Country_Woman,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Pregnant
+Country_Averaged <- full_join(Country_Averaged, Country_Pregnant,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Stroller
+Country_Averaged <- full_join(Country_Averaged, Country_Stroller,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add OldMan
+Country_Averaged <- full_join(Country_Averaged, Country_OldMan,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add OldWoman
+Country_Averaged <- full_join(Country_Averaged, Country_OldWoman,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Boy
+Country_Averaged <- full_join(Country_Averaged, Country_Boy,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Girl
+Country_Averaged <- full_join(Country_Averaged, Country_Girl,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Homeless
+Country_Averaged <- full_join(Country_Averaged, Country_Homeless,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add LargeWoman
+Country_Averaged <- full_join(Country_Averaged, Country_LargeWoman,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add LargeMan
+Country_Averaged <- full_join(Country_Averaged, Country_LargeMan,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Criminal
+Country_Averaged <- full_join(Country_Averaged, Country_Criminal,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add MaleExecutive
+Country_Averaged <- full_join(Country_Averaged, Country_MaleExec,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add MaleAthlete
+Country_Averaged <- full_join(Country_Averaged, Country_MaleAth,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add MaleDoctor
+Country_Averaged <- full_join(Country_Averaged, Country_MaleDoctor,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add FemaleExecutive
+Country_Averaged <- full_join(Country_Averaged, Country_FemaleExec,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add FemaleAthlete
+Country_Averaged <- full_join(Country_Averaged, Country_FemaleAth,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add FemaleDoctor
+Country_Averaged <- full_join(Country_Averaged, Country_FemaleDoctor,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Dog
+Country_Averaged <- full_join(Country_Averaged, CountryDog,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+# add Cat
+Country_Averaged <- full_join(Country_Averaged, Country_Cat,
+                              by = c('UserCountry3' = 'UserCountry3', 'n' = 'n'),
+                              keep = FALSE)
+Country_Averaged <- Country_Averaged %>% select(-variable)
+
+#write.csv(Country_Averaged, 'MM_EU//Country_Averaged.csv')
+```
+
+
+## Analysis
+In the following part, the analysis conducted to answer the research question is done.
+This starts with clustering the data, finding the optimal number of clusters for this data.
+Clustering is done with Wards method (Ward.D2 in the stats package).
+To get robust outcomes, two different distances are used to check whether they influence the outcome: Euclidean and Manhattan distance.
+
+```{r Analysis1: first cluster}
+# First cluster: Ward.D2, Euclidean distance on 20 variables (intervention + all attributes, diffnumcharachters omitted)
+
+Country_Averaged <- Country_Averaged %>% select(-DiffNumberOFCharacters)
+distances_Eucl <- dist(Country_Averaged[3:23], method = 'euclidean')
+Cluster_D2_Eucl <- hclust(distances_Eucl, method = 'ward.D2')
+Labels_Order_D2_Eucl <- Country_Averaged$UserCountry3[Cluster_D2_Eucl$order]
+scaled_data = as.matrix(scale(Country_Averaged[3:23]))
+kmm = kmeans(scaled_data, 9, nstart=50, iter.max = 15)
+kmm
+```
+
+
+#### Elbow Method
+Elbow method is traditionally used to find the optimal k for the data:
+This is done to prevent over- and underfitting.
+
+```{r Analysis 2: Elbow method}
+# Elbow method for k = 2 - 15
+k.max <- 15
+data <- scaled_data
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 10 )$tot.withinss})
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares",
+     main= 'Elbow Method')
+```
+
+Based on the elbow method, K = 7 was chosen as the optimal number of clusters.
+
+### K-means for with K=7 on Country_Averaged with Hartigan-Wong algorithm
+
+```{r K-means}
+colnames(Country_Averaged)
+Country_Averaged <- Country_Averaged %>% select(-n)
+
+set.seed(1)
+kmeans_cluster <- kmeans(Country_Averaged[2:22], 7, iter.max = 25, algorithm = "Hartigan-Wong")
+kmeans_cluster["cluster"]
+
+
+```
+
+
+
+#### Dendrogram 1: Euclidean distance, k = 7, Ward's method
+\
+
+```{r Analysis 3: dendrogram 1 euclidean}
+dendro1 <- as.dendrogram(Cluster_D2_Eucl)
+Labels_Order_D2_Eucl <- Country_Averaged$UserCountry3[Cluster_D2_Eucl$order]
+labels(dendro1) <- Labels_Order_D2_Eucl
+plotje <- set(dendro1, "labels_cex") %>% 
+  set("labels_col", value = c(1:7), k=7) %>% 
+  set("branches_lwd", 2) %>% 
+  set("branches_k_color", value = 1:7, k = 7) %>% 
+  plot(main = "Clustered Member States \nWard.D2, Eucl")
+
+dendro1 %>% get_nodes_attr('height') ## get node's height for every split
+```
+
+
+#### Dendrogram 2: Manhattan distance, k = 7, Ward's method
+\
+```{r Analysis 4: dendrogram 2 manhattan }
+distances_Manh <- dist(Country_Averaged[3:23], method='manhattan', labels(Country_Averaged$UserCountry3))
+cluster_d2_manh <- hclust(distances_Manh, method = 'ward.D2')
+dendro2 <- as.dendrogram(cluster_d2_manh)
+Labels_Order_D2_manh <- Country_Averaged$UserCountry3[cluster_d2_manh$order]
+labels(dendro2) <- Labels_Order_D2_manh
+plotje_manh <- set(dendro2, "labels_cex") %>% 
+  set("labels_col", value = c(1:7), k=7) %>% 
+  set("branches_lwd", 2) %>% 
+  set("branches_k_color", value = 1:7, k = 7) %>% 
+  plot(main = "Clustered Member States \nWard.D2, Manh")
+```
+
+#### Comparing the two dendrograms
+As can be seen in the plots, the clusters themselves are quite stable.
+The only difference is that the place where they split off are different.
+In other words, the between clusters are stable, the within clusters differ a bit.
+
+```{r Analysis 5: comparing dendrograms, fig.width=7, fig.height=8}
+## Compare the two dendrograms using dendextend
+dendlist(dendro1, dendro2) %>% 
+  untangle(method='step1side') %>%
+  tanglegram( ## plots two dendrograms to visually compare them
+    highlight_distinct_edges = FALSE,
+    highlight_branches_lwd = FALSE)
+
+dendlist(dendro1, dendro2) %>% 
+  untangle(method='step1side') %>% 
+  entanglement() ## produces alignment quality, the lower the better
+
+## baker gamma is a correlation coefficient.
+cor_bakers_gamma(dendro1, dendro2)
+```
+
+```{r}
+
+kmeans_cluster['cluster']
+
+```
+
+
+
+Assign clusters to data frame
+```{r Assign clusters to df}
+countries <- c('AUT','BEL','BGR','CYP','CZE',
+               'DEU','DNK','ESP','EST','FIN',
+               'FRA','GRC','HRV','HUN','IRL',
+               'ITA','LTU','LUX','LVA','MLT',
+               'NLD','POL','PRT','ROU','SVK',
+               'SVN','SWE')
+
+## cluster solution hierarchical Ward k=7
+cluster1 <- c(6,2,4,5,5,
+             6,6,5,7,7,
+             1,5,5,2,5,
+             2,4,6,7,3,
+             6,6,7,5,2,
+             7,7)
+cluster1
+
+## assign labels to df from kmeans solution
+cluster2 <- c(2,7,1,4,1,
+              2,2,5,6,2,
+              7,5,5,7,5,
+              7,1,5,1,3,
+              2,2,6,5,7,
+              6,6)
+
+assigned_clusters <- data.frame('UserCountry3' = countries, 'cluster1' =as.factor(cluster1), 'cluster2'=as.factor(cluster2))
+```
+
+test on small dataframe
+```{r Test on small df}
+# ## test on small dataframe, works!
+# mini_test_frame <- test_frame[1:25, ]
+# test_clusters <- full_join(mini_test_frame, assigned_clusters, by = 'UserCountry3')
+# test_clusters <- test_clusters[1:25, ]
+```
+
+
+```{r}
+# which(is.na(test_frame_clusters))
+# write.csv(test_frame_clusters, 'test_frame_clusters.csv')
+
+#write.csv(Final_Frame_Labels, 'Final_Frame_Labels.csv')
+```
+
+assign labels to data frame
+```{r}
+## assign labels to final frame
+Final_Frame_Labels <- full_join(Final_Frame, assigned_clusters, by='UserCountry3')
+```
+
+
+Set train control for cross-validation
+```{r Cross-calidation: train control}
+## set train control hyperparameters
+tr_ctrl <- trainControl(method = "repeatedcv",
+                                 number = 7,
+                                 repeats = 3,
+                        verboseIter = TRUE,
+                        sampling = 'down')
+```
+
+
+## look into the class imbalances
+```{r Inspect class imbalances}
+label_props_cluster1 <- Final_Train_Frame %>%
+  group_by(cluster1) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n))
+
+label_props_cluster1
+
+label_props_cluster2 <- Final_Train_Frame %>%
+  group_by(cluster2) %>%
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n))
+
+label_props_cluster2
+
+#create pie chart
+ggplot(label_props_cluster1, aes(x="", y=freq, fill=cluster1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  geom_text(aes(label = paste0(freq, "%")), position =  position_stack(vjust=0.5)) +
+  labs(x = NULL, y = NULL) +
+  theme_classic() +
+  theme(axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank()) +
+  scale_fill_brewer(palette="Blues")
+
+```
+
+
+
+## SVM linear
+Done on a small sample (1%) of the data to test whether it works and save computational power
+
+```{r SVM1}
+
+SVM_Model1 <- caret::train(Final_Frame_Labels[1:248000,7:26], 
+                    as.factor(Final_Frame_Labels[1:248000,27]),
+                    method = 'svmLinear',
+                    preProcess = c("center", "scale"),
+                    trControl = tr_ctrl,
+                    tuneGrid = expand.grid(C=1))
+SVM_Model1
+```
+
+```{r SVM2}
+SVM_Model2 <- caret::train(Final_Frame_Labels[1:248000,7:26], 
+                    as.factor(Final_Frame_Labels[1:248000,28]),
+                    method = 'svmLinear',
+                    preProcess = c("center", "scale"),
+                    trControl = tr_ctrl,
+                    tuneGrid = expand.grid(C=1))
+
+SVM_Model2
+```
+## Multi-Layer Perceptron
+
+```{r MLP1}
+MLP_Model1 <- caret::train(x = Final_Frame_Labels[1:24800,7:26], 
+                    y = as.factor(Final_Frame_Labels[1:24800,27]),
+                    method = 'mlp',
+                    trControl = tr_ctrl,
+                    tuneGrid = expand.grid(size=(1))
+                   )
+MLP_Model1
+```
+
+```{r MLP2}
+MLP_Model2 <- caret::train(x = Final_Frame_Labels[1:248000,7:26], 
+                    y = as.factor(Final_Frame_Labels[1:248000, 28]),
+                    method = 'mlp',
+                    trControl = tr_ctrl,
+                    tuneGrid = expand.grid(size=(1))
+                   )
+MLP_Model2
+```
+
+## random forest
+```{r RF1}
+rf_model1 <- caret::train(x = Final_Frame_Labels[1:27000,7:26], 
+                    y = as.factor(Final_Frame_Labels[1:27000,27]),
+                    method = 'rf',
+                    trControl = tr_ctrl,
+                    tuneGrid = expand.grid(mtry=2)
+                   )
+
+rf_model1
+
+```
+
+```{r RF2}
+rf_model2 <- caret::train(x = Final_Frame_Labels[1:27000,7:26], 
+                    y = as.factor(Final_Frame_Labels[1:27000,28]),
+                    method = 'rf',
+                    trControl = tr_ctrl,
+                    tuneGrid = expand.grid(mtry=2)
+                   )
+
+rf_model2
+```
+
+
+## KNN
+```{r KNN1}
+knn_model1 <- caret::train(x = Final_Frame_Labels[1:248000,7:26], 
+                    y = as.factor(Final_Frame_Labels[1:248000,27]),
+                    method = 'knn',
+                    trControl = trainControl(method = "repeatedcv",
+                                 number = 50,
+                                 repeats = 3),
+                    tuneGrid=data.frame(k=1)
+                   )
+
+knn_model1
+```
+
+```{r KNN2}
+knn_model2 <- caret::train(x = Final_Frame_Labels[1:248000,7:26], 
+                    y = as.factor(Final_Frame_Labels[1:248000,28]),
+                    method = 'knn',
+                    trControl = trainControl(method = "repeatedcv",
+                                 number = 50,
+                                 repeats = 3),
+                    tuneGrid=data.frame(k=1)
+                   )
+
+knn_model2
+
+```
+
+
+```{r RF on countries}
+### run RF model to predict countries
+rf_model_countries <- caret::train(x = Final_Train_Frame[,8:27], ## 
+                          y = as.factor(Final_Train_Frame[,'UserCountry3']),
+                          method = 'rf',
+                          trControl = tr_ctrl,
+                          tuneGrid = expand.grid(mtry=2))
+
+
+rf_model_countries
+
+# predict labels on test data
+rf_fit_countries <- predict(rf_model_countries, newdata = Final_Test_Frame)
+
+confusionMatrix(reference = as.factor(Final_Test_Frame[,'UserCountry3']), 
+                data = as.factor(rf_fit_countries))
+```
+
+
+## prediction with RF
+```{r Assign clusters to test data}
+## assign clusters to test data
+test_frame_clusters <- full_join(test_frame, assigned_clusters, by = 'UserCountry3')
+```
+
+
+```{r}
+rf1_fit <- predict(rf_model1, newdata = Final_Test_Frame[,8:28]) # columns jumped 1 place up because of join
+
+confusionMatrix(reference = as.factor(Final_Test_Frame[,28]), 
+                data = as.factor(rf1_fit))
+
+rf2_fit <- predict(rf_model2, newdata = Final_Test_Frame[,8:29])
+
+confusionMatrix(reference = as.factor(Final_Test_Frame[,29]), 
+                data = as.factor(rf2_fit))
+```
+
+
+Append clusters to data frame
+```{r EU_data}
+# EU_data <- read.csv('MM_EU/EU_data.csv', header = TRUE, sep = ',') 
+# EU_info2 <- read.csv('EU_info2.csv', header = TRUE, sep = ';')
+# 
+# EU_data <- full_join(EU_data, EU_info2, by = "UserCountry3")
+```
+
+Create data frame with religiousness added
+```{r new data frame with religiousness}
+EU_data_full <- read.csv('EU_Info_full.csv', header = TRUE, sep = ';')
+
+# arrange
+EU_data_full <- EU_data_full %>% arrange(UserCountry3)
+
+# add clusters to the EU_data
+EU_data <- full_join(EU_data_full, assigned_clusters, by = "UserCountry3")
+head(EU_data)
+
+
+```
+
+
+## Analysis: explain clusters
+This was done for cluster1 and cluster2
+To save room, only cluster1 is shown, to get the results for cluster2: change x = cluster1 to x = cluster2
+
+```{r anova GDP, message=FALSE, warning=FALSE}
+## Anova clusters on GDP MODEL 1
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = GDP,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 's'
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = GDP,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 's'
+)
+```
+
+```{r anova EU years, message=FALSE, warning=FALSE, include=TRUE}
+## Anova clusters on EU membership years
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = EU_Years.2019.,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = EU_Years.2019.,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
+```{r anova gender pay gap, include=TRUE}
+## Anova clusters on Gender Pay Gap
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = Gender_Pay_Gap,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = Gender_Pay_Gap,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
+```{r anova High Tech Employment, include=TRUE}
+## Anova clusters on High Tech Employment
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = High_Tech_Employment,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = High_Tech_Employment,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
+```{r anova Population}
+## Anova clusters on Population
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = Population_2019,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = Population_2019,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
+
+```{r anova Population, Gini, Life_Expectancy}
+
+
+## ANOVA Gini2019
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = Gini_2019,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+## ANOVA Gini2019
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = Gini_2019,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+
+```
+
+```{r}
+## ANOVA Life_Expectancy
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = Life_Expectancy,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = Life_Expectancy,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
+
+```{r}
+## ANOVA on religiousness
+ggbetweenstats(
+  data = EU_data,
+  x = cluster1,
+  y = religiousness,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+ggbetweenstats(
+  data = EU_data,
+  x = cluster2,
+  y = religiousness,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
+create new dataframes with only the 3 biggest clusters per model
+```{r}
+## Model 1
+big_clusters1 <- EU_data %>% 
+  filter(cluster2 == 2 |
+           cluster2 == 5 |
+           cluster2 == 7)
+```
+
+
+```{r anova big clusters}
+## anova with 3 biggest clusters on GDP
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = GDP,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 'all'
+)
+
+## EU Years
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = EU_Years.2019.,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 'all'
+)
+
+## High_Tech_Employment
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = High_Tech_Employment,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 'all'
+)
+
+## Gender Pay Gap
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = Gender_Pay_Gap,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 'all'
+)
+## Population
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = Population_2019,
+  type = 'nonparametric',
+  var.equal = FALSE,
+  pairwise.display = 'all'
+)
+
+## Gini2019
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = Gini_2019,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+## Life_Expectancy
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = Life_Expectancy,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+
+## Religiousness
+ggbetweenstats(
+  data = big_clusters1,
+  x = cluster2,
+  y = religiousness,
+  type = 'nonparametric',
+  var.equal = FALSE
+)
+```
+
