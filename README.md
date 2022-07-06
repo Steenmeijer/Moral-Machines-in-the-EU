@@ -12,8 +12,11 @@ The pdf file is the knitted product of the RMarkdown file and can be used to qui
 ## RMarkdown file
 The RMarkdown file can be used if one wishes to replicate the analysis in this project, or use bits of code or manipulated data to conduct their own research or pursue follow-up research questions.
 
-## Moral Machines part two
+## Moral Machines part 2
 Contains the code used to conduct the additional analyses for the second submission.
+
+## EU_info_full.csv
+Contains the data retrieved from Eurostat that were used as descriptive variables to explain the clustering solutions.
 
 ## Thesis 
 After completion and receiving the final result, I shall also upload the thesis project to this repository.
