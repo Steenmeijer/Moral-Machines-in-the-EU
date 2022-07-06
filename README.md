@@ -12,6 +12,9 @@ The pdf file is the knitted product of the RMarkdown file and can be used to qui
 ## RMarkdown file
 The RMarkdown file can be used if one wishes to replicate the analysis in this project, or use bits of code or manipulated data to conduct their own research or pursue follow-up research questions.
 
+## Moral Machines part two
+Contains the code used to conduct the additional analyses for the second submission.
+
 ## Thesis 
 After completion and receiving the final result, I shall also upload the thesis project to this repository.
 
